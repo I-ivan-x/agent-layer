@@ -41,11 +41,14 @@ class ChatService:
             log_chat_result(trace_id, request.query, 0, response.status)
             return response
 
+        # Q1 keeps stream as an interface placeholder; /api/chat always returns JSON.
+        filters = request.filters or {}
+
         try:
             retrieval_results = self.retriever.retrieve(
                 query=query,
                 top_k=request.top_k,
-                filters=request.filters,
+                filters=filters,
             )
         except Exception:
             response = ChatResponse(
@@ -69,8 +72,7 @@ class ChatService:
             log_chat_result(trace_id, query, 0, response.status)
             return response
 
-        context = self.context_assembler.assemble(retrieval_results)
-        prompt = self.prompt_builder.build(query=query, context=context)
+        prompt = self.prompt_builder.build(query=query, chunks=retrieval_results)
 
         try:
             answer = self.llm.generate(prompt)
@@ -92,4 +94,3 @@ class ChatService:
         )
         log_chat_result(trace_id, query, len(retrieval_results), response.status)
         return response
-

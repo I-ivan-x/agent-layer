@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
@@ -7,7 +7,7 @@ class ChatRequest(BaseModel):
     query: str
     session_id: Optional[str] = None
     top_k: int = Field(default=5, ge=1)
-    filters: Optional[dict] = None
+    filters: dict[str, Any] = Field(default_factory=dict)
     stream: bool = False
 
 
@@ -27,4 +27,3 @@ class ChatResponse(BaseModel):
     answer: str
     message: str
     citations: list[Citation]
-
