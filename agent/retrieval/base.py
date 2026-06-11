@@ -11,6 +11,6 @@ class BaseRetriever(ABC):
         query: str,
         top_k: int = 5,
         filters: Optional[dict] = None,
+        mode: str = "hybrid",  # 新增
     ) -> list[RetrievalResult]:
         raise NotImplementedError
-

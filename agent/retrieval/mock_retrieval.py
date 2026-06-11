@@ -14,6 +14,7 @@ class MockRetrieval(BaseRetriever):
         query: str,
         top_k: int = 5,
         filters: Optional[dict] = None,
+        mode: str = "hybrid",  # 新增，Mock 阶段暂不使用
     ) -> list[RetrievalResult]:
         if self.should_raise:
             raise RuntimeError("mock retrieval error")
@@ -47,4 +48,3 @@ class MockRetrieval(BaseRetriever):
             ),
         ]
         return results[:top_k]
-

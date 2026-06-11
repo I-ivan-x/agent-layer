@@ -1,7 +1,5 @@
-from typing import Optional
-
+from typing import Optional, Literal
 from pydantic import BaseModel, Field
-
 
 class ChatRequest(BaseModel):
     query: str
@@ -9,7 +7,10 @@ class ChatRequest(BaseModel):
     top_k: int = Field(default=5, ge=1)
     filters: Optional[dict] = None
     stream: bool = False
-
+    retrieval_mode: Optional[Literal["vector", "bm25", "hybrid"]] = Field(
+        default=None,
+        description="检索模式：vector/bm25/hybrid，不传则使用默认值"
+    )
 
 class Citation(BaseModel):
     citation_id: int
