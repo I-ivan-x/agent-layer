@@ -41,13 +41,20 @@ class ChatService:
             log_chat_result(trace_id, request.query, 0, response.status)
             return response
 
+        retrieval_mode = getattr(request, 'retrieval_mode', None) or "hybrid"
+
         try:
             retrieval_results = self.retriever.retrieve(
                 query=query,
                 top_k=request.top_k,
                 filters=request.filters,
+                mode=retrieval_mode,
             )
         except Exception:
+
+            import traceback
+            traceback.print_exc()
+ 
             response = ChatResponse(
                 trace_id=trace_id,
                 status=StatusCode.RETRIEVAL_ERROR,
