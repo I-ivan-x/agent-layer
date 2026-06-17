@@ -105,3 +105,15 @@ def test_chat_service_passes_week2_retrieval_parameters() -> None:
     assert retriever.last_call["filters"] == {"doc_type": "md"}
     assert retriever.last_call["mode"] == "bm25"
     assert retriever.last_call["trace_id"].startswith("trace-")
+
+
+def test_chat_service_returns_retrieval_error_when_real_tool_missing(monkeypatch) -> None:
+    monkeypatch.setattr("agent.retrieval.retrieval_adapter.settings.USE_MOCK_RETRIEVAL", False)
+    monkeypatch.setattr("agent.retrieval.retrieval_adapter.settings.TOOL_LAYER_IMPORT", "missing_tool_layer")
+
+    service = ChatService()
+    response = service.chat(ChatRequest(query="真实检索冒烟"))
+
+    assert response.status == StatusCode.RETRIEVAL_ERROR
+    assert response.answer == ""
+    assert response.message == "检索服务暂时不可用，请稍后重试。"

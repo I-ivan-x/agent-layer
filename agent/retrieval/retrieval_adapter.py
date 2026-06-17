@@ -21,7 +21,7 @@ class RetrievalAdapter(BaseRetriever):
             return
 
         should_use_mock = settings.USE_MOCK_RETRIEVAL if use_mock is None else use_mock
-        self.retriever = MockRetrieval() if should_use_mock else self._load_search_tool()
+        self.retriever = MockRetrieval() if should_use_mock else None
 
     def retrieve(
         self,
@@ -72,8 +72,11 @@ class RetrievalAdapter(BaseRetriever):
         min_score: float,
         trace_id: Optional[str],
     ) -> list[Any]:
-        if hasattr(self.retriever, "search"):
-            return self.retriever.search(
+        retriever = self.retriever or self._load_search_tool()
+        self.retriever = retriever
+
+        if hasattr(retriever, "search"):
+            return retriever.search(
                 query=query,
                 top_k=top_k,
                 mode=mode,
@@ -82,8 +85,8 @@ class RetrievalAdapter(BaseRetriever):
                 trace_id=trace_id,
             )
 
-        if hasattr(self.retriever, "retrieve"):
-            return self.retriever.retrieve(
+        if hasattr(retriever, "retrieve"):
+            return retriever.retrieve(
                 query=query,
                 top_k=top_k,
                 filters=filters,

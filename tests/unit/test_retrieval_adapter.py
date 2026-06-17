@@ -90,3 +90,10 @@ def test_retrieval_adapter_maps_search_tool_errors() -> None:
 
     with pytest.raises(RetrievalError):
         adapter.retrieve(query="触发检索异常")
+
+
+def test_retrieval_adapter_defers_real_tool_layer_loading() -> None:
+    adapter = RetrievalAdapter(use_mock=False)
+
+    with pytest.raises(RetrievalError):
+        adapter.retrieve(query="真实模式但 tool_layer 未安装")
