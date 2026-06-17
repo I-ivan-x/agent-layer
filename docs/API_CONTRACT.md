@@ -2,15 +2,15 @@
 
 ## POST /api/chat
 
-Current stage: Week 1 Mock JSON chain.
+Current stage: Week 2 single-turn RAG chain with configurable Mock / Tool Layer retrieval and configurable Mock / real LLM client.
 
 The endpoint runs the minimal Agent Core flow:
 
 ```text
-request validation -> ChatService -> mock retrieval -> PromptBuilder V1 -> MockLLM -> AnswerFormatter -> JSON response
+request validation -> ChatService -> RetrievalAdapter -> ContextAssembler -> PromptBuilder -> LLM -> AnswerFormatter -> JSON response
 ```
 
-`stream` is reserved for future SSE or fetch streaming support. In Week 1, requests with `stream: true` still return normal JSON.
+`stream` is reserved for future SSE or fetch streaming support. In the current implementation, requests with `stream: true` still return normal JSON.
 
 ## Request
 
@@ -20,7 +20,8 @@ request validation -> ChatService -> mock retrieval -> PromptBuilder V1 -> MockL
   "session_id": "local-session-001",
   "top_k": 5,
   "filters": {},
-  "stream": false
+  "stream": false,
+  "retrieval_mode": "hybrid"
 }
 ```
 
@@ -28,9 +29,10 @@ Fields:
 
 - `query`: Required user question. After trimming whitespace, it must not be empty.
 - `session_id`: Optional session identifier reserved for Web integration.
-- `top_k`: Optional retrieval count. Default is `5`.
-- `filters`: Optional retrieval filters. Default is `{}`.
-- `stream`: Optional streaming flag. Default is `false`; Week 1 ignores it and returns JSON.
+- `top_k`: Optional retrieval count. Default is `5`, valid range is `1-20`.
+- `filters`: Optional retrieval filters. Default is `null`.
+- `stream`: Optional streaming flag. Default is `false`; current version returns JSON.
+- `retrieval_mode`: Optional retrieval mode. Supported values are `vector`, `bm25`, and `hybrid`; default is `hybrid`.
 
 ## Success Response
 
@@ -80,21 +82,49 @@ Fields:
 
 - `success`
 - `invalid_query`
+- `no_relevant_context`
 - `retrieval_error`
 - `llm_error`
 
-## Not Implemented In Week 1
+## Tool Layer Integration
 
-- Real database
-- Real vector retrieval
-- Real LLM
-- SSE streaming
-- ACL permission filtering
+Agent uses `RetrievalAdapter` to call Tool Layer when `USE_MOCK_RETRIEVAL=false`.
 
-## Interfaces To Confirm With Member B
+Expected Tool Layer interface:
 
-- Whether retrieval will expose `retrieval.search(query, top_k, filters)` or keep `retrieve(...)`.
-- Standard retrieval chunk fields.
-- Whether the `trace_id` function is fixed as `generate_trace_id()`.
-- Final home of the status enum.
-- Final ownership of `ChatRequest` and `ChatResponse` schemas.
+```python
+SearchTool().search(
+    query=query,
+    top_k=top_k,
+    mode=retrieval_mode,
+    filters=filters,
+    min_score=min_score,
+    trace_id=trace_id,
+)
+```
+
+The adapter converts Tool Layer `dict` results into `RetrievalResult` with:
+
+- `doc_id`
+- `chunk_id`
+- `chunk_index`
+- `chunk_text`
+- `title`
+- `source_url`
+- `score`
+
+Full Tool Layer contract is in `docs/tool_layer_interface.md`.
+
+## Mode Switches
+
+- `USE_MOCK_RETRIEVAL=true`: use built-in `MockRetrieval`.
+- `USE_MOCK_RETRIEVAL=false`: dynamically load `TOOL_LAYER_IMPORT` / `TOOL_LAYER_CLASS`, defaulting to `tool_layer.SearchTool`.
+- `USE_MOCK_LLM=true`: use built-in `MockLLM`.
+- `USE_MOCK_LLM=false`: use `LLMClient` with OpenAI-compatible Chat Completions settings.
+
+## Not Implemented In Current Version
+
+- SSE streaming.
+- ACL permission filtering.
+- Production-level retrieval quality tuning.
+- Production secret management.

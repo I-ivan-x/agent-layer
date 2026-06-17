@@ -11,6 +11,8 @@ class BaseRetriever(ABC):
         query: str,
         top_k: int = 5,
         filters: Optional[dict] = None,
+        mode: str = "hybrid",
+        min_score: float = 0.0,
+        trace_id: Optional[str] = None,
     ) -> list[RetrievalResult]:
         raise NotImplementedError
-

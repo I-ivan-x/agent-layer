@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -6,9 +6,10 @@ from pydantic import BaseModel, Field
 class ChatRequest(BaseModel):
     query: str
     session_id: Optional[str] = None
-    top_k: int = Field(default=5, ge=1)
-    filters: dict[str, Any] = Field(default_factory=dict)
+    top_k: int = Field(default=5, ge=1, le=20)
+    filters: Optional[dict[str, Any]] = None
     stream: bool = False
+    retrieval_mode: Literal["vector", "bm25", "hybrid"] = "hybrid"
 
 
 class Citation(BaseModel):

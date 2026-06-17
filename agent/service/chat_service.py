@@ -1,5 +1,7 @@
 from agent.formatter.answer_formatter import AnswerFormatter
+from agent.config.settings import settings
 from agent.llm.base import BaseLLM
+from agent.llm.llm_client import LLMClient
 from agent.llm.mock_llm import MockLLM
 from agent.logger.app_logger import log_chat_result
 from agent.prompt.context_assembler import ContextAssembler
@@ -21,7 +23,7 @@ class ChatService:
         answer_formatter: AnswerFormatter | None = None,
     ) -> None:
         self.retriever = retriever or RetrievalAdapter()
-        self.llm = llm or MockLLM()
+        self.llm = llm or (MockLLM() if settings.USE_MOCK_LLM else LLMClient())
         self.context_assembler = context_assembler or ContextAssembler()
         self.prompt_builder = prompt_builder or PromptBuilder()
         self.answer_formatter = answer_formatter or AnswerFormatter()
@@ -42,13 +44,16 @@ class ChatService:
             return response
 
         # Q1 keeps stream as an interface placeholder; /api/chat always returns JSON.
-        filters = request.filters or {}
+        filters = request.filters or None
 
         try:
             retrieval_results = self.retriever.retrieve(
                 query=query,
                 top_k=request.top_k,
                 filters=filters,
+                mode=request.retrieval_mode,
+                min_score=settings.MIN_RETRIEVAL_SCORE,
+                trace_id=trace_id,
             )
         except Exception:
             response = ChatResponse(
@@ -72,7 +77,8 @@ class ChatService:
             log_chat_result(trace_id, query, 0, response.status)
             return response
 
-        prompt = self.prompt_builder.build(query=query, chunks=retrieval_results)
+        context = self.context_assembler.assemble(retrieval_results)
+        prompt = self.prompt_builder.build(query=query, context=context)
 
         try:
             answer = self.llm.generate(prompt)

@@ -14,7 +14,11 @@ class MockRetrieval(BaseRetriever):
         query: str,
         top_k: int = 5,
         filters: Optional[dict] = None,
+        mode: str = "hybrid",
+        min_score: float = 0.0,
+        trace_id: Optional[str] = None,
     ) -> list[RetrievalResult]:
+        _ = (query, filters, mode, trace_id)
         if self.should_raise:
             raise RuntimeError("mock retrieval error")
         if self.return_empty:
@@ -24,6 +28,7 @@ class MockRetrieval(BaseRetriever):
             RetrievalResult(
                 doc_id="agent-q1-plan",
                 chunk_id="chunk-001",
+                chunk_index=0,
                 title="Agent 层 Q1 范围",
                 source_url="https://example.local/docs/agent-q1-plan",
                 score=0.96,
@@ -32,6 +37,7 @@ class MockRetrieval(BaseRetriever):
             RetrievalResult(
                 doc_id="agent-interface-contract",
                 chunk_id="chunk-002",
+                chunk_index=1,
                 title="Web-Agent 接口契约",
                 source_url="https://example.local/docs/interface-contract",
                 score=0.91,
@@ -40,11 +46,11 @@ class MockRetrieval(BaseRetriever):
             RetrievalResult(
                 doc_id="agent-work-division",
                 chunk_id="chunk-003",
+                chunk_index=2,
                 title="两人协作分工",
                 source_url="https://example.local/docs/division-of-work",
                 score=0.88,
                 chunk_text="xdj 负责 Agent 主流程，lhf 负责基础设施、检索适配、日志、trace、配置、错误和测试。",
             ),
         ]
-        return results[:top_k]
-
+        return [result for result in results if result.score >= min_score][:top_k]

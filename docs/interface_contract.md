@@ -8,7 +8,8 @@
   "session_id": "optional-session-id",
   "top_k": 5,
   "filters": null,
-  "stream": false
+  "stream": false,
+  "retrieval_mode": "hybrid"
 }
 ```
 
@@ -19,6 +20,7 @@
 - `top_k`：检索数量，默认 5。
 - `filters`：预留过滤条件，选填。
 - `stream`：是否期望流式输出，Q1 仅预留。
+- `retrieval_mode`：检索模式，支持 `vector`、`bm25`、`hybrid`，默认 `hybrid`。
 
 ## ChatResponse 响应格式
 
@@ -68,4 +70,3 @@
 - `status != success` 时展示 `message`，不要展示空 `answer`。
 - 所有日志和问题排查都携带 `trace_id`。
 - `citations` 可按 `citation_id` 与答案中的 `[1]`、`[2]` 对应展示。
-
