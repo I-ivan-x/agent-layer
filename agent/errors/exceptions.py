@@ -1,32 +1,57 @@
-"""
-自定义异常模块
-"""
+# agent/errors/exceptions.py
+
+"""Custom exception definitions."""
+
 
 class AgentError(Exception):
-    """Agent 基础异常"""
+    """Base exception for Agent Layer."""
+
     pass
 
 
 class RetrievalError(AgentError):
-    """检索异常"""
+    """Base exception for retrieval-related errors."""
+
+    pass
+
+
+class RetrievalTimeoutError(RetrievalError):
+    """Raised when retrieval times out."""
+
+    pass
+
+
+class RetrievalEmptyError(RetrievalError):
+    """Raised when retrieval returns no usable results."""
+
+    pass
+
+
+class RetrievalResultFormatError(RetrievalError):
+    """Raised when retrieval result format is invalid."""
+
     pass
 
 
 class LLMError(AgentError):
-    """LLM 调用异常"""
+    """Raised when LLM invocation fails."""
+
     pass
 
 
 class InvalidQueryError(AgentError):
-    """无效查询异常"""
+    """Raised when the input query is invalid."""
+
     pass
 
 
 class NoRelevantContextError(AgentError):
-    """无相关内容异常"""
+    """Raised when no relevant context is available."""
+
     pass
 
 
 class ConfigError(AgentError):
-    """配置错误"""
+    """Raised when configuration is invalid."""
+
     pass
