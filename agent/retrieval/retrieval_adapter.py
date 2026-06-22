@@ -7,6 +7,13 @@ from agent.retrieval.base import BaseRetriever
 from agent.retrieval.mock_retrieval import MockRetrieval
 from agent.schemas.retrieval import RetrievalResult
 
+import time
+
+from agent.logger.logger import get_logger
+from agent.trace.trace_id import get_trace_id
+
+logger = get_logger(__name__)
+
 SUPPORTED_RETRIEVAL_MODES = {"vector", "bm25", "hybrid"}
 
 
@@ -26,42 +33,92 @@ class RetrievalAdapter(BaseRetriever):
         self.retriever = MockRetrieval() if should_use_mock else None
 
     def retrieve(
-        self,
-        query: str,
-        top_k: int = 5,
-        filters: Optional[dict] = None,
-        mode: str = "hybrid",
-        min_score: float = 0.0,
-        trace_id: Optional[str] = None,
+            self,
+            query: str,
+            top_k: int = 5,
+            filters: Optional[dict] = None,
+            mode: str = "hybrid",
+            min_score: float = 0.0,
+            trace_id: Optional[str] = None,
     ) -> list[RetrievalResult]:
-        if not query or not query.strip():
-            raise RetrievalError("Query cannot be empty")
+        actual_trace_id = trace_id or get_trace_id() or "-"
+        start_time = time.perf_counter()
 
-        if top_k < 1 or top_k > 20:
-            raise RetrievalError("top_k must be between 1 and 20")
-
-        if mode not in SUPPORTED_RETRIEVAL_MODES:
-            raise RetrievalError(f"Unsupported retrieval mode: {mode}")
-
-        if min_score < 0.0 or min_score > 1.0:
-            raise RetrievalError("min_score must be between 0.0 and 1.0")
+        logger.info(
+            "[RETRIEVAL_START] trace_id=%s query=%s top_k=%s mode=%s min_score=%s",
+            actual_trace_id,
+            query,
+            top_k,
+            mode,
+            min_score,
+        )
 
         try:
+            if not query or not query.strip():
+                raise RetrievalError("Query cannot be empty")
+
+            if top_k < 1 or top_k > 20:
+                raise RetrievalError("top_k must be between 1 and 20")
+
+            if mode not in SUPPORTED_RETRIEVAL_MODES:
+                raise RetrievalError(f"Unsupported retrieval mode: {mode}")
+
+            if min_score < 0.0 or min_score > 1.0:
+                raise RetrievalError("min_score must be between 0.0 and 1.0")
+
             raw_results = self._call_retriever(
                 query=query,
                 top_k=top_k,
                 filters=filters,
                 mode=mode,
                 min_score=min_score,
-                trace_id=trace_id,
+                trace_id=actual_trace_id,
             ) or []
-        except RetrievalError:
-            raise
-        except Exception as exc:
-            raise RetrievalError(f"Retrieval service unavailable: {exc}") from exc
 
-        normalized_results = [self._normalize_result(raw_result) for raw_result in raw_results]
-        return [result for result in normalized_results if result.score >= min_score][:top_k]
+            normalized_results = [
+                self._normalize_result(raw_result) for raw_result in raw_results
+            ]
+
+            final_results = [
+                                result for result in normalized_results if result.score >= min_score
+                            ][:top_k]
+
+            latency_ms = int((time.perf_counter() - start_time) * 1000)
+
+            logger.info(
+                "[RETRIEVAL_END] trace_id=%s results_count=%s latency_ms=%s",
+                actual_trace_id,
+                len(final_results),
+                latency_ms,
+            )
+
+            return final_results
+
+        except RetrievalError as exc:
+            latency_ms = int((time.perf_counter() - start_time) * 1000)
+
+            logger.error(
+                "[RETRIEVAL_ERROR] trace_id=%s latency_ms=%s error=%s",
+                actual_trace_id,
+                latency_ms,
+                exc,
+                exc_info=True,
+            )
+
+            raise
+
+        except Exception as exc:
+            latency_ms = int((time.perf_counter() - start_time) * 1000)
+
+            logger.error(
+                "[RETRIEVAL_ERROR] trace_id=%s latency_ms=%s error=%s",
+                actual_trace_id,
+                latency_ms,
+                exc,
+                exc_info=True,
+            )
+
+            raise RetrievalError(f"Retrieval service unavailable: {exc}") from exc
 
     def _load_search_tool(self) -> Any:
         try:
