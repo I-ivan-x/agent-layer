@@ -11,6 +11,8 @@ SUPPORTED_RETRIEVAL_MODES = {"vector", "bm25", "hybrid"}
 
 
 class RetrievalAdapter(BaseRetriever):
+    """Adapter between Agent Layer and retrieval implementations."""
+
     def __init__(
         self,
         retriever: Any | None = None,
@@ -32,8 +34,17 @@ class RetrievalAdapter(BaseRetriever):
         min_score: float = 0.0,
         trace_id: Optional[str] = None,
     ) -> list[RetrievalResult]:
+        if not query or not query.strip():
+            raise RetrievalError("Query cannot be empty")
+
+        if top_k < 1 or top_k > 20:
+            raise RetrievalError("top_k must be between 1 and 20")
+
         if mode not in SUPPORTED_RETRIEVAL_MODES:
             raise RetrievalError(f"Unsupported retrieval mode: {mode}")
+
+        if min_score < 0.0 or min_score > 1.0:
+            raise RetrievalError("min_score must be between 0.0 and 1.0")
 
         try:
             raw_results = self._call_retriever(
@@ -49,11 +60,8 @@ class RetrievalAdapter(BaseRetriever):
         except Exception as exc:
             raise RetrievalError(f"Retrieval service unavailable: {exc}") from exc
 
-        return [
-            result
-            for result in (self._normalize_result(raw_result) for raw_result in raw_results)
-            if result.score >= min_score
-        ][:top_k]
+        normalized_results = [self._normalize_result(raw_result) for raw_result in raw_results]
+        return [result for result in normalized_results if result.score >= min_score][:top_k]
 
     def _load_search_tool(self) -> Any:
         try:

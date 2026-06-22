@@ -5,6 +5,8 @@ from agent.schemas.retrieval import RetrievalResult
 
 
 class BaseRetriever(ABC):
+    """Unified abstract interface for all retrievers."""
+
     @abstractmethod
     def retrieve(
         self,

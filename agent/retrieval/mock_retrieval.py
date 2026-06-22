@@ -5,6 +5,8 @@ from agent.schemas.retrieval import RetrievalResult
 
 
 class MockRetrieval(BaseRetriever):
+    """Mock retriever for local development and testing."""
+
     def __init__(self, return_empty: bool = False, should_raise: bool = False) -> None:
         self.return_empty = return_empty
         self.should_raise = should_raise
@@ -19,38 +21,52 @@ class MockRetrieval(BaseRetriever):
         trace_id: Optional[str] = None,
     ) -> list[RetrievalResult]:
         _ = (query, filters, mode, trace_id)
+
         if self.should_raise:
             raise RuntimeError("mock retrieval error")
+
         if self.return_empty:
             return []
 
         results = [
             RetrievalResult(
                 doc_id="agent-q1-plan",
-                chunk_id="chunk-001",
+                chunk_id="agent-q1-plan::chunk_0",
                 chunk_index=0,
-                title="Agent 层 Q1 范围",
-                source_url="https://example.local/docs/agent-q1-plan",
+                title="Agent Layer Q1 Scope",
+                source_url="",
                 score=0.96,
-                chunk_text="Q1 只实现简化版单轮 RAG Agent，使用 Mock Retrieval 和 Mock LLM 打通最小闭环。",
+                chunk_text=(
+                    "Q1 implements a simplified single-turn RAG Agent. "
+                    "The Agent receives a user query, calls retrieval once, "
+                    "builds a prompt, calls the LLM, and returns an answer with citations."
+                ),
             ),
             RetrievalResult(
                 doc_id="agent-interface-contract",
-                chunk_id="chunk-002",
-                chunk_index=1,
-                title="Web-Agent 接口契约",
-                source_url="https://example.local/docs/interface-contract",
+                chunk_id="agent-interface-contract::chunk_0",
+                chunk_index=0,
+                title="Web-Agent Interface Contract",
+                source_url="",
                 score=0.91,
-                chunk_text="/api/chat 返回 trace_id、status、answer、message 和 citations，普通 JSON 响应是 Q1 保底能力。",
+                chunk_text=(
+                    "The /api/chat endpoint returns trace_id, status, answer, "
+                    "message, and citations. The frontend uses these fields for display."
+                ),
             ),
             RetrievalResult(
                 doc_id="agent-work-division",
-                chunk_id="chunk-003",
-                chunk_index=2,
-                title="两人协作分工",
-                source_url="https://example.local/docs/division-of-work",
+                chunk_id="agent-work-division::chunk_0",
+                chunk_index=0,
+                title="Team Collaboration Division",
+                source_url="",
                 score=0.88,
-                chunk_text="xdj 负责 Agent 主流程，lhf 负责基础设施、检索适配、日志、trace、配置、错误和测试。",
+                chunk_text=(
+                    "xdj is responsible for the main Agent workflow. "
+                    "lhf is responsible for infrastructure, retrieval adapter, "
+                    "logging, tracing, configuration, errors, and tests."
+                ),
             ),
         ]
+
         return [result for result in results if result.score >= min_score][:top_k]
