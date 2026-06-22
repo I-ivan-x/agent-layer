@@ -17,10 +17,11 @@
 - Retrieval Adapter
 - Context Assembler
 - Prompt 模板优化
-- LLM Client 占位
+- LLM Client
 - Answer Generator
 - citations 组装
-- Mock / real 模式切换预留
+- Mock / real 模式切换
+- Tool Layer `SearchTool.search()` 冒烟通过
 
 ## 第 3 周
 
@@ -40,4 +41,3 @@
 - Demo 问题集验证
 - Bug 修复
 - 技术文档整理
-
