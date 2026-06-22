@@ -92,8 +92,16 @@ def test_retrieval_adapter_maps_search_tool_errors() -> None:
         adapter.retrieve(query="触发检索异常")
 
 
-def test_retrieval_adapter_defers_real_tool_layer_loading() -> None:
+def test_retrieval_adapter_defers_real_tool_layer_loading(monkeypatch):
+    from agent.config.settings import settings
+
+    monkeypatch.setattr(
+        settings,
+        "TOOL_LAYER_IMPORT",
+        "missing_tool_layer_for_test",
+    )
+
     adapter = RetrievalAdapter(use_mock=False)
 
     with pytest.raises(RetrievalError):
-        adapter.retrieve(query="真实模式但 tool_layer 未安装")
+        adapter.retrieve(query="test query")
