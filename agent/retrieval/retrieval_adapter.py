@@ -5,63 +5,31 @@ from typing import Any, Optional
 
 from agent.config.settings import settings
 from agent.errors.exceptions import RetrievalError
-from agent.logger.logger import get_logger
 from agent.retrieval.base import BaseRetriever
 from agent.retrieval.mock_retrieval import MockRetrieval
 from agent.schemas.retrieval import RetrievalResult
-from agent.trace.trace_id import get_trace_id
 
-logger = get_logger(__name__)
+SUPPORTED_RETRIEVAL_MODES = {"vector", "bm25", "hybrid"}
 
 
 class RetrievalAdapter(BaseRetriever):
-    """
-    Unified retrieval adapter for Agent Layer.
-
-    This adapter hides the difference between mock retrieval and real Tool Layer
-    retrieval. It also normalizes all returned results into RetrievalResult.
-    """
+    """Adapter between Agent Layer and retrieval implementations."""
 
     def __init__(
         self,
-        mode: Optional[str] = None,
-        retriever: Optional[Any] = None,
+        retriever: Any | None = None,
+        use_mock: bool | None = None,
     ) -> None:
-        self.mode = (mode or settings.RETRIEVAL_MODE).lower()
-
         if retriever is not None:
             self.retriever = retriever
-            logger.info("Using injected retriever")
             return
 
-        if self.mode == "mock":
+        should_use_mock = settings.USE_MOCK_RETRIEVAL if use_mock is None else use_mock
+
+        if should_use_mock:
             self.retriever = MockRetrieval()
-            logger.info("Using MockRetrieval")
-        elif self.mode == "real":
-            self.retriever = self._init_real_retriever()
-            logger.info("Using real Tool Layer retriever")
         else:
-            raise RetrievalError(f"Unsupported retrieval mode: {self.mode}")
-
-    def _init_real_retriever(self) -> Any:
-        """
-        Initialize Tool Layer SearchTool dynamically.
-
-        Expected Tool Layer contract:
-            from tool_layer import SearchTool
-            tool = SearchTool()
-            tool.search(...)
-        """
-        try:
-            module = import_module(settings.TOOL_LAYER_IMPORT)
-            search_tool_class = getattr(module, settings.TOOL_LAYER_CLASS)
-            return search_tool_class()
-        except ImportError as exc:
-            raise RetrievalError(f"Failed to import Tool Layer: {exc}") from exc
-        except AttributeError as exc:
-            raise RetrievalError(f"Tool Layer class not found: {exc}") from exc
-        except Exception as exc:
-            raise RetrievalError(f"Failed to initialize retriever: {exc}") from exc
+            self.retriever = None
 
     def retrieve(
         self,
@@ -72,71 +40,62 @@ class RetrievalAdapter(BaseRetriever):
         min_score: float = 0.0,
         trace_id: Optional[str] = None,
     ) -> list[RetrievalResult]:
-        """
-        Retrieve relevant chunks through mock retriever or Tool Layer.
-
-        The method signature is aligned with the Tool Layer CP1 interface:
-        query, top_k, mode, filters, min_score, trace_id.
-        """
         if not query or not query.strip():
             raise RetrievalError("Query cannot be empty")
 
-        actual_trace_id = trace_id or get_trace_id()
+        if top_k < 1 or top_k > 20:
+            raise RetrievalError("top_k must be between 1 and 20")
 
-        logger.info(
-            "[RETRIEVAL_ADAPTER] trace_id=%s mode=%s top_k=%s min_score=%s",
-            actual_trace_id,
-            mode,
-            top_k,
-            min_score,
-        )
+        if mode not in SUPPORTED_RETRIEVAL_MODES:
+            raise RetrievalError(f"Unsupported retrieval mode: {mode}")
+
+        if min_score < 0.0 or min_score > 1.0:
+            raise RetrievalError("min_score must be between 0.0 and 1.0")
 
         try:
             raw_results = self._call_retriever(
                 query=query,
                 top_k=top_k,
-                mode=mode,
                 filters=filters,
+                mode=mode,
                 min_score=min_score,
-                trace_id=actual_trace_id,
-            )
-            results = self._normalize_results(raw_results)
-
-            logger.info(
-                "[RETRIEVAL_ADAPTER] trace_id=%s results=%s",
-                actual_trace_id,
-                len(results),
-            )
-            return results
-
+                trace_id=trace_id,
+            ) or []
         except RetrievalError:
             raise
         except Exception as exc:
-            logger.error(
-                "[RETRIEVAL_ADAPTER] trace_id=%s failed: %s",
-                actual_trace_id,
-                exc,
-                exc_info=True,
-            )
             raise RetrievalError(f"Retrieval service unavailable: {exc}") from exc
+
+        normalized_results = [
+            self._normalize_result(raw_result) for raw_result in raw_results
+        ]
+
+        return [
+            result for result in normalized_results if result.score >= min_score
+        ][:top_k]
+
+    def _load_search_tool(self) -> Any:
+        try:
+            module = import_module(settings.TOOL_LAYER_IMPORT)
+            search_tool_class = getattr(module, settings.TOOL_LAYER_CLASS)
+            return search_tool_class()
+        except Exception as exc:
+            raise RetrievalError(f"Tool layer initialization failed: {exc}") from exc
 
     def _call_retriever(
         self,
         query: str,
         top_k: int,
-        mode: str,
         filters: Optional[dict],
+        mode: str,
         min_score: float,
         trace_id: Optional[str],
-    ) -> Any:
-        """
-        Call the underlying retriever.
+    ) -> list[Any]:
+        retriever = self.retriever or self._load_search_tool()
+        self.retriever = retriever
 
-        Real Tool Layer should provide search(...).
-        MockRetriever may provide retrieve(...).
-        """
-        if hasattr(self.retriever, "search"):
-            return self.retriever.search(
+        if hasattr(retriever, "search"):
+            return retriever.search(
                 query=query,
                 top_k=top_k,
                 mode=mode,
@@ -145,38 +104,56 @@ class RetrievalAdapter(BaseRetriever):
                 trace_id=trace_id,
             )
 
-        if hasattr(self.retriever, "retrieve"):
-            return self.retriever.retrieve(
+        if hasattr(retriever, "retrieve"):
+            return retriever.retrieve(
                 query=query,
                 top_k=top_k,
-                mode=mode,
                 filters=filters,
+                mode=mode,
                 min_score=min_score,
                 trace_id=trace_id,
             )
 
-        raise RetrievalError("Retriever must implement search() or retrieve()")
+        raise RetrievalError("Retriever must provide search() or retrieve().")
 
-    def _normalize_results(self, results: Any) -> list[RetrievalResult]:
-        """
-        Normalize Tool Layer list[dict] results into list[RetrievalResult].
-        """
-        if results is None:
-            return []
+    def _normalize_result(self, raw_result: Any) -> RetrievalResult:
+        if isinstance(raw_result, RetrievalResult):
+            return raw_result
 
-        if not isinstance(results, list):
-            raise RetrievalError("Retrieval results must be a list")
+        if isinstance(raw_result, dict):
+            return self._normalize_mapping(raw_result)
 
-        normalized_results: list[RetrievalResult] = []
+        return self._normalize_mapping(
+            {
+                "doc_id": getattr(raw_result, "doc_id", ""),
+                "chunk_id": getattr(raw_result, "chunk_id", None),
+                "chunk_index": getattr(raw_result, "chunk_index", None),
+                "chunk_text": getattr(raw_result, "chunk_text", ""),
+                "title": getattr(raw_result, "title", ""),
+                "source_url": getattr(raw_result, "source_url", ""),
+                "score": getattr(raw_result, "score", 0.0),
+            }
+        )
 
-        for item in results:
-            if isinstance(item, RetrievalResult):
-                normalized_results.append(item)
-            elif isinstance(item, dict):
-                normalized_results.append(RetrievalResult(**item))
-            else:
-                raise RetrievalError(
-                    f"Invalid retrieval result item type: {type(item).__name__}"
-                )
+    def _normalize_mapping(self, data: dict[str, Any]) -> RetrievalResult:
+        doc_id = str(data.get("doc_id") or "")
 
-        return normalized_results
+        chunk_index = data.get("chunk_index")
+        if chunk_index is None:
+            chunk_index = 0
+
+        chunk_id = data.get("chunk_id") or f"{doc_id}::chunk_{chunk_index}"
+        chunk_text = data.get("chunk_text") or data.get("content") or data.get("text") or ""
+        title = data.get("title") or doc_id
+        source_url = data.get("source_url") or ""
+        score = float(data.get("score") or 0.0)
+
+        return RetrievalResult(
+            doc_id=doc_id,
+            chunk_id=str(chunk_id),
+            chunk_index=int(chunk_index),
+            chunk_text=str(chunk_text),
+            title=str(title),
+            source_url=str(source_url),
+            score=score,
+        )

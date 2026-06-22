@@ -22,6 +22,8 @@ class MockRetrieval(BaseRetriever):
         min_score: float = 0.0,
         trace_id: Optional[str] = None,
     ) -> list[RetrievalResult]:
+        _ = (query, filters, mode, trace_id)
+
         if self.should_raise:
             raise RuntimeError("mock retrieval error")
 

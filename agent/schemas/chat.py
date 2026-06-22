@@ -1,16 +1,16 @@
-from typing import Optional, Literal
+from typing import Any, Literal, Optional
+
 from pydantic import BaseModel, Field
+
 
 class ChatRequest(BaseModel):
     query: str
     session_id: Optional[str] = None
-    top_k: int = Field(default=5, ge=1)
-    filters: Optional[dict] = None
+    top_k: int = Field(default=5, ge=1, le=20)
+    filters: Optional[dict[str, Any]] = None
     stream: bool = False
-    retrieval_mode: Optional[Literal["vector", "bm25", "hybrid"]] = Field(
-        default=None,
-        description="检索模式：vector/bm25/hybrid，不传则使用默认值"
-    )
+    retrieval_mode: Literal["vector", "bm25", "hybrid"] = "hybrid"
+
 
 class Citation(BaseModel):
     citation_id: int
@@ -28,4 +28,3 @@ class ChatResponse(BaseModel):
     answer: str
     message: str
     citations: list[Citation]
-

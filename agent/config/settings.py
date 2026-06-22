@@ -1,61 +1,77 @@
 # agent/config/settings.py
 
+import os
 from typing import Optional
 
-from pydantic import Field, ConfigDict
-from pydantic_settings import BaseSettings
+from pydantic import BaseModel, Field
 
 
-class Settings(BaseSettings):
+def _env_bool(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_int(name: str, default: int) -> int:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return int(value)
+
+
+def _env_float(name: str, default: float) -> float:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return float(value)
+
+
+class Settings(BaseModel):
     """Global settings for Agent Layer."""
 
-    model_config = ConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
+    # Application configuration
+    APP_NAME: str = os.getenv("APP_NAME", "Agent Layer")
+    DEBUG: bool = _env_bool("DEBUG", True)
+    HOST: str = os.getenv("HOST", "0.0.0.0")
+    PORT: int = _env_int("PORT", 8000)
+
+    # Retrieval configuration
+    USE_MOCK_RETRIEVAL: bool = _env_bool("USE_MOCK_RETRIEVAL", True)
+
+    DEFAULT_TOP_K: int = Field(
+        default_factory=lambda: _env_int("DEFAULT_TOP_K", 5),
+        ge=1,
+        le=20,
     )
 
-    # Application configuration
-    APP_NAME: str = Field(default="Agent Layer")
-    DEBUG: bool = Field(default=True)
-    HOST: str = Field(default="0.0.0.0")
-    PORT: int = Field(default=8000)
+    MIN_RETRIEVAL_SCORE: float = Field(
+        default_factory=lambda: _env_float("MIN_RETRIEVAL_SCORE", 0.0),
+        ge=0.0,
+        le=1.0,
+    )
 
-    # Agent configuration
-    RETRIEVAL_MODE: str = Field(default="mock")  # mock / real
-    USE_MOCK_LLM: bool = Field(default=True)
-    DEFAULT_TOP_K: int = Field(default=5, ge=1, le=20)
-    MIN_RETRIEVAL_SCORE: float = Field(default=0.0, ge=0.0, le=1.0)
-
-    # Logger configuration
-    LOG_LEVEL: str = Field(default="INFO")
-    LOG_FILE: Optional[str] = Field(default=None)
-
-    # LLM configuration
-    LLM_MODEL: str = Field(default="gpt-3.5-turbo")
-    LLM_TEMPERATURE: float = Field(default=0.1)
-    LLM_MAX_TOKENS: int = Field(default=2000)
-    LLM_TIMEOUT: int = Field(default=30)
+    DEFAULT_RETRIEVAL_MODE: str = os.getenv("DEFAULT_RETRIEVAL_MODE", "hybrid")
 
     # Tool Layer configuration
-    TOOL_LAYER_IMPORT: str = Field(default="tool_layer")
-    TOOL_LAYER_CLASS: str = Field(default="SearchTool")
-    TOOL_LAYER_TIMEOUT: int = Field(default=10)
+    TOOL_LAYER_IMPORT: str = os.getenv("TOOL_LAYER_IMPORT", "tool_layer")
+    TOOL_LAYER_CLASS: str = os.getenv("TOOL_LAYER_CLASS", "SearchTool")
 
-    @property
-    def use_mock_retrieval(self) -> bool:
-        """Whether to use mock retrieval."""
-        return self.RETRIEVAL_MODE.lower() == "mock"
+    # LLM configuration
+    USE_MOCK_LLM: bool = _env_bool("USE_MOCK_LLM", True)
+    LLM_API_KEY: str = os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY", "")
+    LLM_API_BASE: str = os.getenv(
+        "LLM_API_BASE",
+        os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1"),
+    )
+    LLM_MODEL: str = os.getenv("LLM_MODEL", "gpt-3.5-turbo")
+    LLM_TEMPERATURE: float = _env_float("LLM_TEMPERATURE", 0.1)
+    LLM_MAX_TOKENS: int = _env_int("LLM_MAX_TOKENS", 2000)
+    LLM_TIMEOUT: int = _env_int("LLM_TIMEOUT", 30)
 
-    @property
-    def is_mock_mode(self) -> bool:
-        """Whether the whole agent runs in mock mode."""
-        return self.use_mock_retrieval and self.USE_MOCK_LLM
-
-    @property
-    def is_production(self) -> bool:
-        """Whether the application is running in production mode."""
-        return not self.DEBUG
+    # Logging configuration
+    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+    LOG_FILE: Optional[str] = os.getenv("LOG_FILE")
 
 
 settings = Settings()
