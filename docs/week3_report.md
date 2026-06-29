@@ -65,7 +65,7 @@ python -m pytest
 结果：
 
 ```text
-32 passed
+34 passed
 ```
 
 新增测试覆盖：
@@ -76,6 +76,8 @@ python -m pytest
 - answer 缺少引用时补齐 `[1]`
 - answer 含无效引用时修正为有效 citation
 - Prompt 包含更强的幻觉抑制规则
+- Retrieval Adapter 记录 `[RETRIEVAL_START]`、`[RETRIEVAL_END]` 和 `[RETRIEVAL_ERROR]`
+- 检索阶段日志包含 trace_id 和结果数量
 
 ## 当前结论
 
